@@ -1,0 +1,27 @@
+# Phase 0 spike image. No desktop. Target: under 300 MB unpacked.
+name: test-minimal
+display_name: Test Minimal
+version: 0.1.0
+base: debian-trixie
+arch: arm64
+desktop: none
+min_ram_mb: 512
+install_recommends: false
+max_uncompressed_mb: 300
+packages:
+  - bash
+  - coreutils
+  - procps
+  - iproute2
+  - curl
+  - ca-certificates
+  - nano
+  - python3
+  # needed by the common hooks (locale, user, sudo)
+  - locales
+  - sudo
+  - passwd
+hooks:
+  - 10-base
+  - 20-scripts
+  - 90-slim

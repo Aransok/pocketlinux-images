@@ -1,0 +1,38 @@
+Mint-Y theme and icon attribution
+=================================
+
+This image contains the Mint-Y GTK theme family and the Mint-Y icon theme
+family, built from the upstream source repositories at image build time:
+
+  https://github.com/linuxmint/mint-themes
+  https://github.com/linuxmint/mint-y-icons
+
+Exact source revisions are listed in SOURCE-REVISIONS.txt next to this file.
+The upstream copyright files are kept here as mint-themes.copyright and
+mint-y-icons.copyright.
+
+Licenses
+~~~~~~~~
+
+mint-themes (GTK and Cinnamon themes)
+  Copyright 2012-2014 Clement Lefebvre and contributors.
+  Licensed under the GNU General Public License, version 3 or later.
+  Full text: /usr/share/common-licenses/GPL-3
+
+mint-y-icons, scripts and general files
+  Copyright 2010-2014 Clement Lefebvre and contributors.
+  Licensed under the GNU General Public License, version 3 or later.
+  Full text: /usr/share/common-licenses/GPL-3
+
+mint-y-icons, artwork under usr/share/icons
+  Copyright 2015 Sam Hewitt and Alexey Varfolomeev (derived from the
+  Paper icon theme and Moka icon theme).
+  Licensed under the Creative Commons Attribution-ShareAlike 4.0
+  International license (CC BY-SA 4.0).
+  Full text: https://creativecommons.org/licenses/by-sa/4.0/legalcode
+
+Changes: none to the artwork. The GTK css is generated from the upstream
+sass sources with the upstream generator script.
+
+The Linux Mint name and logo are trademarks of their owners. This image is
+not affiliated with or endorsed by the Linux Mint project.

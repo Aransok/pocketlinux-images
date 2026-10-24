@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-only
+# Starts a desktop session inside the proot image.
+# The app starts the X server (DISPLAY :0) and a PulseAudio server on
+# 127.0.0.1:4713 before calling this script. GPU related environment
+# (MESA_LOADER_DRIVER_OVERRIDE, GALLIUM_DRIVER, ...) is set by the app.
+set -uo pipefail
+
+LOG="${PL_DESKTOP_LOG:-/var/log/pocketlinux-desktop.log}"
+if ! { mkdir -p "$(dirname "$LOG")" && touch "$LOG"; } 2>/dev/null; then
+  LOG="${HOME:-/tmp}/.pocketlinux-desktop.log"
+  touch "$LOG"
+fi
+exec > >(tee -a "$LOG") 2>&1
+
+log() { printf '[start-desktop %s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+have() { command -v "$1" >/dev/null 2>&1; }
+
+export DISPLAY="${DISPLAY:-:0}"
+export PULSE_SERVER="${PULSE_SERVER:-tcp:127.0.0.1:4713}"
+export XDG_SESSION_TYPE=x11
+export GDK_BACKEND=x11
+export NO_AT_BRIDGE=1
+export QT_X11_NO_MITSHM=1
+export MOZ_DISABLE_CONTENT_SANDBOX=1
+export LANG="${LANG:-en_US.UTF-8}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp/runtime-$(id -u)}"
+mkdir -p "$XDG_RUNTIME_DIR" && chmod 0700 "$XDG_RUNTIME_DIR"
+
+desktop="${PL_DESKTOP:-$(cat /etc/pocketlinux/desktop 2>/dev/null || echo none)}"
+log "desktop=$desktop DISPLAY=$DISPLAY PULSE_SERVER=$PULSE_SERVER log=$LOG"
+
+# Is the X server reachable? Works with or without X client tools.
+x_reachable() {
+  if have xset; then xset q >/dev/null 2>&1; return; fi
+  if have xdpyinfo; then xdpyinfo >/dev/null 2>&1; return; fi
+  have python3 || return 1
+  python3 - "$DISPLAY" <<'PY'
+import socket, sys
+d = sys.argv[1]
+try:
+    host, _, rest = d.rpartition(":")
+    num = int(rest.split(".")[0])
+    if host in ("", "unix"):
+        s = socket.socket(socket.AF_UNIX)
+        s.settimeout(2)
+        s.connect("/tmp/.X11-unix/X%d" % num)
+    else:
+        s = socket.create_connection((host, 6000 + num), timeout=2)
+    s.close()
+except Exception:
+    sys.exit(1)
+PY
+}
+
+wait_secs="${PL_X_WAIT:-20}"
+i=0
+until x_reachable; do
+  i=$((i + 1))
+  if [ "$i" -gt "$wait_secs" ]; then
+    log "ERROR: X server at $DISPLAY not reachable after ${wait_secs}s"
+    exit 1
+  fi
+  sleep 1
+done
+log "X server reachable"
+
+[ -s /etc/machine-id ] || dbus-uuidgen --ensure=/etc/machine-id 2>/dev/null || true
+
+# D-Bus session bus.
+dbus_pid=""
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+  if have dbus-launch; then
+    eval "$(dbus-launch --sh-syntax)"
+    dbus_pid="${DBUS_SESSION_BUS_PID:-}"
+    log "dbus session started (pid ${dbus_pid:-unknown})"
+  elif have dbus-run-session && [ -z "${PL_IN_DBUS:-}" ]; then
+    log "re-running under dbus-run-session"
+    PL_IN_DBUS=1 exec dbus-run-session -- "$0" "$@"
+  else
+    log "WARNING: no dbus-launch or dbus-run-session, continuing without a session bus"
+  fi
+fi
+# shellcheck disable=SC2329
+cleanup() { [ -n "$dbus_pid" ] && kill "$dbus_pid" 2>/dev/null; return 0; }
+trap cleanup EXIT
+
+# Run each candidate command in turn. A command that stays up for at least
+# 10 seconds counts as a real session; a quick exit moves on to the next one.
+run_candidates() {
+  local cmd start rc
+  for cmd in "$@"; do
+    # shellcheck disable=SC2086
+    set -- $cmd
+    if ! have "$1"; then
+      log "skip $cmd (not installed)"
+      continue
+    fi
+    log "launching: $cmd"
+    start=$(date +%s)
+    "$@"
+    rc=$?
+    if [ $(($(date +%s) - start)) -ge 10 ]; then
+      log "session ended (rc=$rc)"
+      return 0
+    fi
+    log "WARNING: $cmd exited after under 10s (rc=$rc), trying next fallback"
+  done
+  return 1
+}
+
+case "$desktop" in
+  xfce)
+    export XDG_CURRENT_DESKTOP=XFCE
+    export XDG_SESSION_DESKTOP=xfce
+    run_candidates "${PL_SESSION_CMD:-startxfce4}" "xfce4-session" "xfwm4 --replace --compositor=off"
+    ;;
+  cinnamon)
+    export XDG_CURRENT_DESKTOP=X-Cinnamon
+    export XDG_SESSION_DESKTOP=cinnamon
+    export CINNAMON_2D=true
+    run_candidates "${PL_SESSION_CMD:-cinnamon-session-cinnamon2d}" "cinnamon-session" "cinnamon2d --replace" "cinnamon --replace"
+    ;;
+  none)
+    log "ERROR: this image has no desktop (profile desktop is none)"
+    exit 2
+    ;;
+  *)
+    log "ERROR: unknown desktop '$desktop'"
+    exit 2
+    ;;
+esac
+rc=$?
+[ "$rc" -eq 0 ] || log "ERROR: no session command worked, see $LOG"
+exit "$rc"

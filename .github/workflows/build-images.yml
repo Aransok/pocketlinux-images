@@ -1,0 +1,148 @@
+name: build-images
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths:
+      - 'build/**'
+      - 'profiles/**'
+      - 'hooks/**'
+      - 'manifest/**'
+      - '.github/workflows/build-images.yml'
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'Profile to build (all builds every profile)'
+        type: choice
+        default: all
+        options: [all, test-minimal, debian-xfce, ubuntu-cinnamon]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+      version: ${{ steps.m.outputs.version }}
+    steps:
+      - id: m
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          CHOICE: ${{ inputs.profile }}
+          SHA: ${{ github.sha }}
+        run: |
+          # test-minimal always; the big images only on tags or manual runs.
+          if [ "$REF_TYPE" = "tag" ]; then
+            profiles='["test-minimal","debian-xfce","ubuntu-cinnamon"]'
+            version="${REF_NAME#v}"
+          else
+            version="0.0.0-${SHA:0:7}"
+            if [ "$EVENT" = "workflow_dispatch" ] && [ "$CHOICE" != "all" ]; then
+              profiles="[\"$CHOICE\"]"
+            elif [ "$EVENT" = "workflow_dispatch" ]; then
+              profiles='["test-minimal","debian-xfce","ubuntu-cinnamon"]'
+            else
+              profiles='["test-minimal"]'
+            fi
+          fi
+          echo "matrix={\"profile\":$profiles}" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: plan
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cache downloaded packages
+        uses: actions/cache@v4
+        with:
+          path: .cache/apt-${{ matrix.profile }}
+          key: apt-${{ matrix.profile }}-${{ hashFiles(format('profiles/{0}.yaml', matrix.profile)) }}
+          restore-keys: |
+            apt-${{ matrix.profile }}-
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            mmdebstrap debian-archive-keyring ubuntu-keyring xz-utils python3
+
+      - name: Build image
+        env:
+          IMAGE_VERSION: ${{ needs.plan.outputs.version }}
+          PL_APT_CACHE: ${{ github.workspace }}/.cache/apt-${{ matrix.profile }}
+          DIST_DIR: ${{ github.workspace }}/dist
+        run: |
+          # Root mode: GitHub runners restrict unprivileged user namespaces.
+          sudo -E build/build-image.sh "${{ matrix.profile }}"
+          sudo chown -R "$(id -u):$(id -g)" dist .cache
+
+      - name: Verify image
+        run: |
+          max=""
+          if [ "${{ matrix.profile }}" = "test-minimal" ]; then max=300; fi
+          build/verify-image.sh dist/*-arm64.tar.xz $max
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-${{ matrix.profile }}
+          path: dist/*
+          retention-days: ${{ matrix.profile == 'test-minimal' && 3 || 7 }}
+          compression-level: 0
+          if-no-files-found: error
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: write
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: image-*
+          path: dist
+          merge-multiple: true
+
+      - name: Generate manifest
+        run: python3 -I manifest/make-manifest.py --dist dist
+
+      - name: Create GitHub release
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
+
+      - name: Upload to R2 (only when secrets exist)
+        run: |
+          if [ -z "$R2_ACCOUNT_ID" ] || [ -z "$R2_ACCESS_KEY_ID" ] || [ -z "$R2_SECRET_ACCESS_KEY" ]; then
+            echo "R2 secrets not set, skipping R2 upload"
+            exit 0
+          fi
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends rclone
+          publish/upload-r2.sh

@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-only
+# Prints a quick health report for the Pocket Linux environment.
+set -uo pipefail
+
+have() { command -v "$1" >/dev/null 2>&1; }
+show() { printf '%-26s %s\n' "$1" "$2"; }
+
+echo "Pocket Linux doctor"
+echo "==================="
+if [ -r /etc/pocketlinux/release ]; then
+  # shellcheck source=/dev/null
+  ( . /etc/pocketlinux/release
+    show "image" "${NAME:-unknown} ${VERSION:-}"
+    show "profile id" "${ID:-unknown}"
+    show "desktop" "${DESKTOP:-unknown}" )
+else
+  show "image" "no /etc/pocketlinux/release"
+fi
+
+show "kernel" "$(uname -sr 2>/dev/null || echo unknown)"
+show "arch (uname)" "$(uname -m 2>/dev/null || echo unknown)"
+have dpkg && show "arch (dpkg)" "$(dpkg --print-architecture 2>/dev/null || echo unknown)"
+show "user" "$(id -un 2>/dev/null) (uid $(id -u 2>/dev/null))"
+
+if [ -r /proc/meminfo ]; then
+  total=$(awk '/^MemTotal:/ {print int($2/1024)}' /proc/meminfo)
+  avail=$(awk '/^MemAvailable:/ {print int($2/1024)}' /proc/meminfo)
+  show "RAM total / available" "${total:-?} MB / ${avail:-?} MB"
+elif have free; then
+  show "RAM (free -m)" "$(free -m | awk '/^Mem:/ {print $2 " MB total, " $7 " MB available"}')"
+else
+  show "RAM" "unknown"
+fi
+
+echo
+echo "GPU environment (set by the app at launch)"
+for v in MESA_LOADER_DRIVER_OVERRIDE GALLIUM_DRIVER LIBGL_ALWAYS_SOFTWARE \
+         MESA_VK_WSI_DEBUG VK_ICD_FILENAMES ZINK_DESCRIPTORS; do
+  show "$v" "${!v:-(unset)}"
+done
+if have glxinfo; then
+  r="$(timeout 8 glxinfo -B 2>/dev/null | awk -F': ' '/OpenGL renderer/ {print $2; exit}')"
+  show "GL renderer" "${r:-(glxinfo gave no answer)}"
+fi
+
+echo
+echo "Display and audio"
+show "DISPLAY" "${DISPLAY:-(unset)}"
+if [ -z "${DISPLAY:-}" ]; then
+  show "display reachable" "no (DISPLAY unset)"
+elif have xset && xset q >/dev/null 2>&1; then
+  show "display reachable" "yes"
+elif have xdpyinfo && xdpyinfo >/dev/null 2>&1; then
+  show "display reachable" "yes"
+elif ! have xset && ! have xdpyinfo; then
+  show "display reachable" "unknown (no xset or xdpyinfo installed)"
+else
+  show "display reachable" "NO"
+fi
+show "PULSE_SERVER" "${PULSE_SERVER:-(unset)}"
+if [[ "${PULSE_SERVER:-}" =~ ^tcp:([^:]+):([0-9]+)$ ]]; then
+  if timeout 2 bash -c "exec 3<>/dev/tcp/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}" 2>/dev/null; then
+    show "audio reachable" "yes"
+  else
+    show "audio reachable" "NO"
+  fi
+fi
+exit 0

@@ -1,0 +1,73 @@
+# Classic desktop image, shown to users as "Desktop Classic".
+# Built from Ubuntu noble arm64 (ports.ubuntu.com).
+#
+# Desktop meta package: cinnamon-desktop-environment is the default.
+# To switch, replace that single line with ubuntucinnamon-desktop (the full
+# Ubuntu Cinnamon flavour set) or with plain "cinnamon" for the smallest
+# possible shell. Check that the name exists for arm64 on noble first:
+#   apt-cache policy cinnamon-desktop-environment ubuntucinnamon-desktop
+#
+# Browser: noble ships firefox only as a snap shim, which cannot run without
+# systemd. Hook 35-firefox-deb installs the real deb from the Mozilla team
+# PPA instead. Remove that hook from the list below to skip the browser.
+name: ubuntu-cinnamon
+display_name: Desktop Classic
+version: 0.1.0
+base: ubuntu-noble
+arch: arm64
+desktop: cinnamon
+min_ram_mb: 4096
+install_recommends: false
+packages:
+  - cinnamon-desktop-environment
+  - mousepad
+  - dbus
+  - dbus-x11
+  - gvfs
+  - adwaita-icon-theme
+  # audio, graphics, X helpers
+  - pulseaudio-utils
+  - libpulse0
+  - libgl1-mesa-dri
+  - mesa-vulkan-drivers
+  - mesa-utils
+  - x11-xserver-utils
+  - x11-utils
+  - xauth
+  - xdg-utils
+  # fonts
+  - fonts-dejavu
+  - fonts-noto-core
+  # dev stack
+  - git
+  - python3
+  - python3-pip
+  - python3-venv
+  - nodejs
+  - npm
+  - build-essential
+  # base userland
+  - sudo
+  - passwd
+  - locales
+  - bash
+  - bash-completion
+  - coreutils
+  - procps
+  - iproute2
+  - curl
+  - wget
+  - ca-certificates
+  - gnupg
+  - nano
+  - less
+  - xz-utils
+  - unzip
+  - zip
+hooks:
+  - 10-base
+  - 20-scripts
+  - 30-mint-y
+  - 35-firefox-deb
+  - 40-desktop-tweaks
+  - 90-slim
