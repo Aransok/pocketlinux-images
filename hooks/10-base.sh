@@ -8,6 +8,8 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
 # 1. Never start daemons from package scripts (no init, no systemd).
+# policy-rc.d is written by mmdebstrap during the build and removed at its cleanup.
+# proot has no init system, so nothing starts services anyway.
 printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
 chmod 0755 /usr/sbin/policy-rc.d
 

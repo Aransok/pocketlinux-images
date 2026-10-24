@@ -23,7 +23,7 @@ awk '{print $NF}' "$listing" > "$names"
 
 fail=0
 for path in etc/pocketlinux/release usr/local/bin/start-desktop usr/local/bin/pl-doctor \
-            etc/sudoers.d/90-pocketlinux usr/sbin/policy-rc.d bin/bash; do
+            etc/sudoers.d/90-pocketlinux bin/bash; do
   if ! grep -Eq "^(\./)?${path}$" "$names" && ! grep -Eq " (\./)?${path} -> " "$listing"; then
     # usrmerge images list bin as a symlink to usr/bin
     if [ "$path" = "bin/bash" ] && grep -Eq ' (\./)?usr/bin/bash$' "$listing"; then
@@ -31,7 +31,7 @@ for path in etc/pocketlinux/release usr/local/bin/start-desktop usr/local/bin/pl
     fi
     echo "MISSING: $path" >&2
     echo "  nearby entries:" >&2
-    grep -E "$(dirname "$path")" "$listing" | head -n 5 | sed 's/^/    /' >&2 || true
+    grep -E "$(dirname "$path")" "$listing" | sed -n 1,5p | sed 's/^/    /' >&2 || true
     fail=1
   fi
 done
