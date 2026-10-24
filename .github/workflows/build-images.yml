@@ -91,8 +91,19 @@ jobs:
           DIST_DIR: ${{ github.workspace }}/dist
         run: |
           # Root mode: GitHub runners restrict unprivileged user namespaces.
-          sudo -E build/build-image.sh "${{ matrix.profile }}"
+          set -o pipefail
+          sudo -E build/build-image.sh "${{ matrix.profile }}" 2>&1 | tee build.log
           sudo chown -R "$(id -u):$(id -g)" dist .cache
+
+      - name: Log tail to job summary on failure
+        if: failure()
+        run: |
+          {
+            echo '## Build log tail'
+            echo '```'
+            tail -n 120 build.log 2>/dev/null || echo "no build.log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify image
         run: |
