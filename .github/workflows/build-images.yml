@@ -95,6 +95,14 @@ jobs:
           sudo -E build/build-image.sh "${{ matrix.profile }}" 2>&1 | tee build.log
           sudo chown -R "$(id -u):$(id -g)" dist .cache
 
+      - name: Verify image
+        run: |
+          max=""
+          if [ "${{ matrix.profile }}" = "test-minimal" ]; then max=300; fi
+          set -o pipefail
+          ls -la dist | tee -a build.log
+          build/verify-image.sh dist/*-arm64.tar.xz $max 2>&1 | tee -a build.log
+
       - name: Post log tail as a commit comment on failure
         if: failure()
         env:
@@ -103,11 +111,6 @@ jobs:
           body="### CI failure: ${{ github.job }} (${{ matrix.profile || 'no matrix' }})"$'\n```\n'"$(tail -c 60000 build.log 2>/dev/null | tail -n 200 || echo 'no build.log')"$'\n```'
           gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" -f body="$body" >/dev/null || echo "could not post comment"
 
-      - name: Verify image
-        run: |
-          max=""
-          if [ "${{ matrix.profile }}" = "test-minimal" ]; then max=300; fi
-          build/verify-image.sh dist/*-arm64.tar.xz $max
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
