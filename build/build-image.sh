@@ -115,7 +115,8 @@ cp -a "$ROOT/hooks/files" "$stage/files"
   printf 'export DEBIAN_FRONTEND=noninteractive\n'
 } > "$stage/env"
 
-include_csv="$(echo "$PL_PACKAGES" | tr ' ' ',')"
+# apt itself is not part of minbase on Ubuntu, so always include it.
+include_csv="$(echo "apt $PL_PACKAGES" | tr " " "\n" | awk '!seen[$0]++' | paste -sd, -)"
 tarball="$work/rootfs.tar"
 log "profile=$PL_NAME base=$PL_BASE suite=$suite version=$PL_VERSION builder=$builder"
 
