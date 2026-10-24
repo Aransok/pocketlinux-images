@@ -122,7 +122,8 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: github.ref_type == 'tag'
+    # Publish whatever built, even if one profile failed.
+    if: always() && github.ref_type == 'tag'
     needs: build
     runs-on: ubuntu-24.04-arm
     permissions:
@@ -144,10 +145,15 @@ jobs:
       - name: Generate manifest
         run: python3 -I manifest/make-manifest.py --dist dist
 
-      - name: Create GitHub release
+      - name: Attach images to the GitHub release
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* \
-            --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
+          ls -la dist
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* \
+              --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
+          fi
 
       - name: Upload to R2 (only when secrets exist)
         run: |
