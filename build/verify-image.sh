@@ -26,6 +26,8 @@ for path in etc/pocketlinux/release usr/local/bin/start-desktop usr/local/bin/pl
       continue
     fi
     echo "MISSING: $path" >&2
+    echo "  nearby entries:" >&2
+    grep -E "$(dirname "$path")" "$listing" | head -n 5 | sed 's/^/    /' >&2 || true
     fail=1
   fi
 done
