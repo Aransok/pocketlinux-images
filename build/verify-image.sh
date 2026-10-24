@@ -14,13 +14,17 @@ if [ -f "$sum_file" ]; then
 fi
 
 listing="$(mktemp)"
-trap 'rm -f "$listing"' EXIT
+names="$(mktemp)"
+trap 'rm -f "$listing" "$names"' EXIT
 tar -tvJf "$tarball" > "$listing"
+# Last field only (symlink targets are handled by the " -> " check below). A separate file
+# avoids grep -q closing a pipe early, which trips pipefail with exit 141.
+awk '{print $NF}' "$listing" > "$names"
 
 fail=0
 for path in etc/pocketlinux/release usr/local/bin/start-desktop usr/local/bin/pl-doctor \
             etc/sudoers.d/90-pocketlinux usr/sbin/policy-rc.d bin/bash; do
-  if ! awk '{print $NF}' "$listing" | grep -Eq "^(\./)?${path}$|^(\./)?${path} "; then
+  if ! grep -Eq "^(\./)?${path}$" "$names" && ! grep -Eq " (\./)?${path} -> " "$listing"; then
     # usrmerge images list bin as a symlink to usr/bin
     if [ "$path" = "bin/bash" ] && grep -Eq ' (\./)?usr/bin/bash$' "$listing"; then
       continue
