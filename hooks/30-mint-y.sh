@@ -3,6 +3,7 @@
 # Builds the Mint-Y theme and icon packs from source (upstream git) and
 # installs them under /usr/share. See MINT-Y-ATTRIBUTION.txt for licenses.
 set -euo pipefail
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export DEBIAN_FRONTEND=noninteractive
 
 themes_url=https://github.com/linuxmint/mint-themes

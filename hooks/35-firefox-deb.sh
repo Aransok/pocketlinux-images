@@ -5,6 +5,7 @@
 # A failure here is reported loudly but does not fail the build unless
 # PL_STRICT=1 is set in the environment of build-image.sh.
 set -euo pipefail
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export DEBIAN_FRONTEND=noninteractive
 
 fingerprint=0AB215679C571D1C8325275B9BDB3D89CE49EC21

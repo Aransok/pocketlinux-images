@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Desktop defaults that matter inside proot: no compositing, no session lockers.
 set -euo pipefail
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export DEBIAN_FRONTEND=noninteractive
 # shellcheck source=/dev/null
 . /tmp/pl/env
 

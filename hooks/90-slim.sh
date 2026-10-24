@@ -3,6 +3,8 @@
 # Strips docs, man pages, extra locales and apt caches to cut size.
 # Copyright files are kept on purpose (license compliance).
 set -euo pipefail
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export DEBIAN_FRONTEND=noninteractive
 
 # Keep future installs slim too.
 mkdir -p /etc/dpkg/dpkg.cfg.d

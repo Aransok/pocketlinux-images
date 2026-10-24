@@ -3,6 +3,8 @@
 # Common base setup, runs inside the new rootfs (chroot).
 # Nothing here may require a running init system: proot has no systemd.
 set -euo pipefail
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export DEBIAN_FRONTEND=noninteractive
 # shellcheck source=/dev/null
 . /tmp/pl/env
 export DEBIAN_FRONTEND=noninteractive
