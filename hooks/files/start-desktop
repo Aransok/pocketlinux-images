@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-only
 # Starts a desktop session inside the proot image.
-# The app starts the X server (DISPLAY :0) and a PulseAudio server on
-# 127.0.0.1:4713 before calling this script. GPU related environment
+# The app starts the X server (pl-x11, display :0) and a PulseAudio server on
+# 127.0.0.1:4713 before calling this script, or pl-x11 runs this script itself through
+# its -xstartup option. GPU related environment
 # (MESA_LOADER_DRIVER_OVERRIDE, GALLIUM_DRIVER, ...) is set by the app.
 set -uo pipefail
 
@@ -16,6 +17,7 @@ exec > >(tee -a "$LOG") 2>&1
 log() { printf '[start-desktop %s] %s\n' "$(date +%H:%M:%S)" "$*"; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
+# :0 is the display of Pocket Linux Display. Set DISPLAY yourself to use another one.
 export DISPLAY="${DISPLAY:-:0}"
 export PULSE_SERVER="${PULSE_SERVER:-tcp:127.0.0.1:4713}"
 export XDG_SESSION_TYPE=x11
@@ -53,14 +55,29 @@ except Exception:
 PY
 }
 
+# Is the unix socket of a local display there? (:0 means /tmp/.X11-unix/X0.) The app binds its
+# tmp folder to /tmp and the X server (pl-x11) creates the socket there. TCP displays skip this.
+x_socket() {
+  case "$DISPLAY" in
+    :*|unix:*)
+      n="${DISPLAY#*:}"
+      n="${n%%.*}"
+      [ -S "/tmp/.X11-unix/X$n" ] || [ -S "${TMPDIR:-/tmp}/.X11-unix/X$n" ]
+      ;;
+    *) return 0 ;;
+  esac
+}
+
+# Wait up to 20 seconds (PL_X_WAIT) for the socket and for a working connection.
 wait_secs="${PL_X_WAIT:-20}"
 i=0
-until x_reachable; do
+until x_socket && x_reachable; do
   i=$((i + 1))
   if [ "$i" -gt "$wait_secs" ]; then
     log "ERROR: X server at $DISPLAY not reachable after ${wait_secs}s"
     exit 1
   fi
+  [ "$i" -ne 1 ] || log "waiting for the X server at $DISPLAY (up to ${wait_secs}s)"
   sleep 1
 done
 log "X server reachable"

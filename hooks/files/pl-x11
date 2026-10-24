@@ -1,0 +1,72 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# pl-x11: starts the Pocket Linux Display X server from inside a glibc proot guest.
+#
+# Derived from shell-loader/scripts/termux-x11.in of Termux:X11
+# (https://github.com/termux/termux-x11, GPLv3, Copyright the Termux:X11 authors).
+# Changes compared to upstream:
+#   * POSIX sh instead of the Termux bash path, so it runs in a Debian or Ubuntu guest.
+#   * The Termux paths (/data/data/com.termux/...) are gone. The APK is found through
+#     $PL_X11_APK (set by the Pocket Linux app), then `pm path app.pocketlinux.x11`.
+#   * It runs com.termux.x11.CmdEntryPoint straight from the Pocket Linux Display APK, the way the
+#     upstream README documents for chroot. Upstream starts com.termux.x11.Loader from a separate
+#     loader.apk, which only adds a signature check that has no use inside a guest we control.
+#   * ANDROID_ROOT and ANDROID_DATA get defaults, because the guest usually starts with `env -i`.
+#   * TMPDIR defaults to /tmp.
+#
+# Usage: pl-x11 :0 [-xstartup "command"] [-- command args...] [other Pocket Linux Display options]
+# Inside the guest TMPDIR must be /tmp, the X server creates $TMPDIR/.X11-unix/X0 there.
+#
+# Environment:
+#   PL_X11_APK   absolute path of the Pocket Linux Display base.apk (optional)
+
+PL_X11_PKG=app.pocketlinux.x11
+
+if [ ! -e /system/bin/getprop ] || [ ! -e /system/bin/app_process ]; then
+  echo "pl-x11: /system/bin/app_process is missing." >&2
+  echo "The guest must be started with the Android system folders bound in:" >&2
+  echo "  -b /system -b /apex -b /vendor -b /data/app -b /linkerconfig" >&2
+  exit 1
+fi
+
+if [ "$(/system/bin/getprop ro.build.version.sdk)" -lt 24 ] 2>/dev/null; then
+  echo "pl-x11: Pocket Linux Display needs Android 7 or newer." >&2
+  exit 1
+fi
+
+# 1. Find the APK.
+apk="${PL_X11_APK:-}"
+if [ -z "$apk" ] || [ ! -r "$apk" ]; then
+  apk="$(/system/bin/pm path "$PL_X11_PKG" 2>/dev/null | head -n 1 | cut -d: -f2 | tr -d '\r')"
+fi
+if [ -z "$apk" ] || [ ! -r "$apk" ]; then
+  echo "pl-x11: cannot find the Pocket Linux Display APK." >&2
+  echo "Install the app $PL_X11_PKG, or set PL_X11_APK to the path of its base.apk." >&2
+  exit 1
+fi
+
+# 2. The Android runtime needs these. The Pocket Linux app forwards the real values; fall back to
+#    the stock ones so a hand-started guest still has a chance.
+export ANDROID_ROOT="${ANDROID_ROOT:-/system}"
+export ANDROID_DATA="${ANDROID_DATA:-/data}"
+if [ -z "${BOOTCLASSPATH:-}" ]; then
+  echo "pl-x11: warning: BOOTCLASSPATH is not set, app_process will probably fail." >&2
+  echo "        Start the guest through the Pocket Linux app, which forwards it." >&2
+fi
+export TMPDIR="${TMPDIR:-/tmp}"
+
+# 3. Same hand-over as upstream: the X server's -xstartup command gets the guest's own
+#    LD_LIBRARY_PATH, LD_PRELOAD and CLASSPATH back; the Android side must not see them.
+[ -z "${LD_LIBRARY_PATH+x}" ] || export XSTARTUP_LD_LIBRARY_PATH="$LD_LIBRARY_PATH"
+[ -z "${LD_PRELOAD+x}" ] || export XSTARTUP_LD_PRELOAD="$LD_PRELOAD"
+[ -z "${CLASSPATH+x}" ] || export XSTARTUP_CLASSPATH="$CLASSPATH"
+export CLASSPATH="$apk"
+unset LD_LIBRARY_PATH LD_PRELOAD
+
+# Upstream: when the caller trapped USR1, tell the X server to signal it once it is ready.
+if trap 2>/dev/null | grep -q USR1; then
+  export TERMUX_X11_NOTIFY_PARENT=1
+fi
+
+exec /system/bin/app_process -Xnoimage-dex2oat / --nice-name="pl-x11 $*" com.termux.x11.CmdEntryPoint "$@"

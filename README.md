@@ -111,7 +111,7 @@ exports `PL_NAME`, `PL_DISPLAY_NAME`, `PL_VERSION`, `PL_BASE`, `PL_ARCH`,
 - `10-base`: policy-rc.d so nothing starts daemons, apt settings for proot,
   locale `en_US.UTF-8`, resolv.conf placeholder, user `linux` (uid 1000, sudo
   without password), default login stays root, `/etc/pocketlinux/release`.
-- `20-scripts`: installs `start-desktop` and `pl-doctor` into `/usr/local/bin`.
+- `20-scripts`: installs `start-desktop`, `pl-doctor` and `pl-x11` into `/usr/local/bin`.
 - `30-mint-y`: builds Mint-Y themes and icons from upstream git.
 - `35-firefox-deb`: Ubuntu only, real browser deb from the Mozilla team PPA,
   because the archive package is a snap shim that cannot run without systemd.
@@ -127,6 +127,11 @@ exports `PL_NAME`, `PL_DISPLAY_NAME`, `PL_VERSION`, `PL_BASE`, `PL_ARCH`,
   then starts the profile's session with fallbacks. Logs to
   `/var/log/pocketlinux-desktop.log`. `PL_SESSION_CMD` overrides the first
   command tried.
+- `pl-x11`: starts the X server of Pocket Linux Display (package `app.pocketlinux.x11`, repository
+  pocketlinux-x11) from inside the guest through Android's `app_process`. The app runs
+  `pl-x11 :0 -xstartup start-desktop`. It needs the Android folders bound in and
+  `PL_X11_APK` plus the Android runtime variables in the environment, which the app provides; it is
+  not useful in a plain `chroot`. The canonical copy is `scripts/pl-x11` in pocketlinux-x11.
 - `pl-doctor`: prints kernel, architecture, free RAM, GPU related environment
   variables and whether the display and audio servers are reachable.
 

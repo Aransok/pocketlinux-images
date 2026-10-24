@@ -32,6 +32,8 @@ packages:
   - mesa-vulkan-drivers
   - mesa-utils
   - x11-xserver-utils
+  # keyboard layouts for the X server of Pocket Linux Display (it embeds xkbcomp)
+  - xkb-data
   - x11-utils
   - xauth
   - xdg-utils

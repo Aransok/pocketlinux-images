@@ -22,7 +22,7 @@ tar -tvJf "$tarball" > "$listing"
 awk '{print $NF}' "$listing" > "$names"
 
 fail=0
-for path in etc/pocketlinux/release usr/local/bin/start-desktop usr/local/bin/pl-doctor \
+for path in etc/pocketlinux/release usr/local/bin/start-desktop usr/local/bin/pl-doctor usr/local/bin/pl-x11 \
             etc/sudoers.d/90-pocketlinux bin/bash; do
   if ! grep -Eq "^(\./)?${path}$" "$names" && ! grep -Eq " (\./)?${path} -> " "$listing"; then
     # usrmerge images list bin as a symlink to usr/bin
