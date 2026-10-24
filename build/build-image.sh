@@ -129,7 +129,10 @@ build_mmdebstrap() {
   fi
   if [ -n "${PL_APT_CACHE:-}" ]; then
     mkdir -p "$PL_APT_CACHE"
-    args+=("--setup-hook=mkdir -p \"\$1/var/cache/apt/archives\" && sync-in \"$PL_APT_CACHE\" /var/cache/apt/archives"
+    # Special commands (sync-in, sync-out, copy-in) only work as a whole hook string,
+    # never inside sh -c, so the mkdir gets its own hook.
+    args+=("--setup-hook=mkdir -p \"\$1/var/cache/apt/archives\""
+           "--setup-hook=sync-in \"$PL_APT_CACHE\" /var/cache/apt/archives"
            "--customize-hook=sync-out /var/cache/apt/archives \"$PL_APT_CACHE\"")
   fi
   args+=("--customize-hook=copy-in \"$stage\" /tmp")
