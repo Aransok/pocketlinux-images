@@ -159,6 +159,9 @@ jobs:
             gh release create "$GITHUB_REF_NAME" dist/* \
               --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
           fi
+          # The app reads /releases/latest/download/manifest.json, and "latest" skips
+          # pre-releases, so every image release must be a full release marked latest.
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --prerelease=false --latest
 
       - name: Upload to R2 (only when secrets exist)
         run: |
